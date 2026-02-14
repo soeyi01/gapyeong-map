@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>가평 가족여행 지도</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+:root {
+  --bg:#f7f7fb;
+  --card:#ffffff;
+  --text:#111827;
+  --muted:#6b7280;
+  --border:rgba(17,24,39,.12);
+  --shadow:0 8px 24px rgba(0,0,0,.08);
+  --accent:#111827;
+
+  --stay:#ef4444;
+  --food:#60a5fa;
+  --cafe:#34d399;
+  --play:#a78bfa;
+  --fav:#f59e0b;
+}
+*{box-sizing:border-box}
+html,body{height:100%; margin:0; font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",Arial; color:var(--text); background:var(--bg);}
+a{color:inherit}
+#app{min-height:100vh; display:flex; flex-direction:row; gap:12px; padding:12px;}
+.sidebar{width:360px; flex:0 0 360px; display:flex; flex-direction:column; gap:12px;}
+.mapwrap{flex:1 1 auto; min-width:320px; display:flex; flex-direction:column; gap:12px;}
+.card{background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow);}
+.card-h{display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border);}
+.card-h h2{margin:0; font-size:15px;}
+.card-b{padding:12px 14px;}
+.small{font-size:12px; color:var(--muted); line-height:1.35}
+.btn{appearance:none; border:1px solid var(--border); background:#fff; padding:9px 11px; border-radius:10px; cursor:pointer; font-size:13px;}
+.btn.primary{background:var(--accent); color:#fff; border-color:transparent;}
+.btn.ghost{background:transparent;}
+.btn:active{transform:translateY(1px)}
+.row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.pill{display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border:1px solid var(--border); border-radius:999px; font-size:13px; background:#fff; cursor:pointer; user-select:none;}
+.pill input{margin:0}
+.badge{display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid var(--border); color:var(--muted);}
+.select{width:100%; padding:10px 10px; border-radius:10px; border:1px solid var(--border); background:#fff; font-size:14px;}
+.input{width:100%; padding:10px 10px; border-radius:10px; border:1px solid var(--border); background:#fff; font-size:14px;}
+.hr{height:1px; background:var(--border); margin:10px 0;}
+#map{height: calc(100vh - 24px); min-height:560px; border-radius:14px; overflow:hidden;}
+.map-card{padding:0;}
+.map-toolbar{position:absolute; z-index:1200; top:14px; right:14px; display:flex; gap:8px;}
+.map-toolbar .btn{box-shadow:var(--shadow)}
+.fullscreen{position:fixed !important; inset:0 !important; height:100vh !important; width:100vw !important; border-radius:0 !important; z-index:2000 !important;}
+.fullscreen-mask{position:fixed; inset:0; background:var(--bg); z-index:1999; display:none;}
+.fullscreen-mask.on{display:block;}
+.marker-icon{width:34px; height:34px; display:grid; place-items:center; border-radius:12px; border:1px solid rgba(0,0,0,.08); box-shadow:0 10px 18px rgba(0,0,0,.18);}
+.marker-icon svg{width:18px; height:18px; fill:#fff}
+.icon-stay{background:var(--stay)}
+.icon-food{background:var(--food)}
+.icon-cafe{background:var(--cafe)}
+.icon-play{background:var(--play)}
+.leaflet-tooltip.marker-label{
+  background:rgba(255,255,255,.92);
+  border:1px solid rgba(17,24,39,.14);
+  box-shadow:0 6px 16px rgba(0,0,0,.10);
+  border-radius:10px;
+  padding:4px 8px;
+  color:#111827;
+  font-weight:600;
+}
+.leaflet-tooltip.marker-label::before{display:none}
+.modal-mask{position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; z-index:3000;}
+.modal-mask.on{display:block;}
+.modal{position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(540px, calc(100vw - 24px)); max-height:calc(100vh - 24px); overflow:auto;
+  background:#fff; border-radius:16px; border:1px solid rgba(255,255,255,.35); box-shadow:0 16px 40px rgba(0,0,0,.25); display:none; z-index:3001;}
+.modal.on{display:block;}
+.modal .modal-h{padding:14px 14px 10px; display:flex; gap:10px; align-items:flex-start; justify-content:space-between; border-bottom:1px solid var(--border);}
+.modal .modal-h h3{margin:0; font-size:18px; line-height:1.2;}
+.modal .modal-b{padding:14px;}
+.modal img{width:100%; border-radius:12px; border:1px solid var(--border);}
+.kv{display:grid; gap:8px}
+.kv .k{font-size:12px; color:var(--muted)}
+.kv .v{font-size:14px;}
+.list{display:flex; flex-direction:column; gap:8px;}
+.item{border:1px solid var(--border); border-radius:12px; padding:10px; background:#fff; display:flex; gap:10px; align-items:flex-start; cursor:pointer;}
+.item:hover{background:#fafafa}
+.dot{width:10px; height:10px; border-radius:999px; margin-top:4px; flex:0 0 10px;}
+.dot.stay{background:var(--stay)} .dot.food{background:var(--food)} .dot.cafe{background:var(--cafe)} .dot.play{background:var(--play)} .dot.fav{background:var(--fav)}
+.item .t{font-weight:700; font-size:14px;}
+.item .s{font-size:12px; color:var(--muted); line-height:1.3}
+.collapse{display:none}
+.collapse.on{display:block}
+@media (max-width: 900px){
+  #app{flex-direction:column;}
+  .sidebar{width:100%; flex:1 1 auto;}
+  .mapwrap{width:100%;}
+  #map{height:56vh; min-height:420px;}
+}
+</style>
+</head>
+<body>
+<div class="fullscreen-mask" id="fsMask"></div>
+
+<div id="app">
+  <div class="sidebar">
+    <div class="card">
+      <div class="card-h">
+        <h2>가평 가족여행 지도</h2>
+        <span class="badge" id="countBadge">0곳</span>
+      </div>
+      <div class="card-b">
+        <div class="small">숙소(글램트리리조트) 기준으로 주변 장소를 한눈에 보고, 대략 이동시간을 확인할 수 있는 오프라인 친화 지도예요.</div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="btnFit">전체 보기</button>
+          <button class="btn" id="btnMyLoc">내 위치</button>
+        </div>
+        <div class="small" style="margin-top:8px">※ 이 버전은 위도/경도 내장형이라 마커가 누락되지 않아요.</div>
+      </div>
+    </div>
+
+    <div class="card" id="filterCard">
+      <div class="card-h">
+        <h2>필터</h2>
+        <button class="btn ghost" data-toggle="filterBody">접기</button>
+      </div>
+      <div class="card-b collapse on" id="filterBody">
+        <div class="row">
+          <label class="pill"><input type="checkbox" id="f_all" checked> 전체</label>
+          <label class="pill"><input type="checkbox" id="f_stay"> 숙소</label>
+          <label class="pill"><input type="checkbox" id="f_food"> 식당</label>
+          <label class="pill"><input type="checkbox" id="f_cafe"> 카페</label>
+          <label class="pill"><input type="checkbox" id="f_play"> 놀거리</label>
+          <label class="pill"><input type="checkbox" id="f_fav"> 즐겨찾기</label>
+        </div>
+        <div class="small" style="margin-top:8px">* 전체를 끄면 체크한 범례만 표시돼요. 숙소 마커는 항상 표시돼요.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <h2>이동시간 계산</h2>
+        <button class="btn ghost" data-toggle="routeBody">접기</button>
+      </div>
+      <div class="card-b collapse on" id="routeBody">
+        <div class="row" style="gap:10px">
+          <div style="flex:1 1 0">
+            <div class="small" style="margin-bottom:6px">출발지</div>
+            <select id="fromSel" class="select"></select>
+          </div>
+          <div style="flex:1 1 0">
+            <div class="small" style="margin-bottom:6px">도착지</div>
+            <select id="toSel" class="select"></select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn primary" id="btnCalc">예상시간 계산</button>
+          <button class="btn" id="btnSwap">↔ 바꾸기</button>
+          <button class="btn" id="btnResetRoute">초기화</button>
+        </div>
+        <div class="small" style="margin-top:10px" id="routeResult">옵션 B 기준(거리×1.3, 평균 45km/h)으로 대략 계산해요.</div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="btnNaverRoute">네이버 길찾기(웹)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <h2>장소검색</h2>
+        <button class="btn ghost" data-toggle="searchBody">접기</button>
+      </div>
+      <div class="card-b collapse on" id="searchBody">
+        <input class="input" id="searchInput" placeholder="이름/주소/메뉴 키워드로 검색"/>
+        <div class="small" style="margin-top:8px">검색 결과는 아래 장소목록에 반영돼요.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <h2>즐겨찾기 목록</h2>
+        <button class="btn ghost" data-toggle="favBody">접기</button>
+      </div>
+      <div class="card-b collapse on" id="favBody">
+        <div id="favList" class="list"></div>
+        <div class="small" id="favEmpty">아직 즐겨찾기가 없어요. 마커/목록에서 장소를 열고 ⭐ 즐겨찾기를 눌러보세요.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <h2>장소목록</h2>
+        <button class="btn ghost" data-toggle="listBody">접기</button>
+      </div>
+      <div class="card-b collapse on" id="listBody">
+        <div id="placeList" class="list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mapwrap">
+    <div class="card map-card" style="position:relative;">
+      <div class="map-toolbar">
+        <button class="btn" id="btnFull">전체화면</button>
+      </div>
+      <div id="map"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="modalMask"></div>
+<div class="modal" id="modal">
+  <div class="modal-h">
+    <div>
+      <h3 id="mTitle"></h3>
+      <div class="small" id="mType"></div>
+    </div>
+    <button class="btn" id="mClose">닫기</button>
+  </div>
+  <div class="modal-b">
+    <div class="row" style="justify-content:space-between; align-items:center;">
+      <span class="badge" id="mAddr"></span>
+      <button class="btn" id="mFavBtn">⭐ 즐겨찾기</button>
+    </div>
+    <div style="margin-top:10px" id="mImgWrap"></div>
+    <div class="kv" style="margin-top:12px">
+      <div>
+        <div class="k">장소설명</div>
+        <div class="v" id="mDesc">-</div>
+      </div>
+      <div id="mMenuWrap">
+        <div class="k">대표메뉴</div>
+        <div class="v" id="mMenu">-</div>
+      </div>
+    </div>
+    <div class="hr"></div>
+    <div class="row">
+      <button class="btn primary" id="mLinkBtn">바로가기</button>
+      <button class="btn" id="mSetFrom">출발지로</button>
+      <button class="btn" id="mSetTo">도착지로</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+const PLACES = [{"name": "글램트리리조트", "type": "숙소", "link": "https://glamtree.co.kr/", "address": "경기 가평군 상면 돌아우길 73 글램트리 리조트", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20240829_141%2F17248962591475QS8s_JPEG%2FIMG_5733.jpeg", "desc": "", "menu": "", "label": "글램트리리조트", "lat": 37.7863293, "lng": 127.3216448}, {"name": "가푱쭈꾸미", "type": "식당", "link": "https://naver.me/xGIBHlgM", "address": "경기 가평군 설악면 한서로 22 1층 가평 쭈꾸미", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20250330_50%2F17433341989136H2IV_JPEG%2FKakaoTalk_20250330_202238789.jpg", "desc": "한식", "menu": "쭈꾸미볶음, 솥밥", "label": "가평쭈꾸미", "lat": 37.6758379, "lng": 127.4957013}, {"name": "별그랑베이커리카페 남이섬점", "type": "카페", "link": "https://naver.me/FYqg69Ls", "address": "경기 가평군 가평읍 북한강변로 1062-26 2층, 3층", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20251119_172%2F1763529017788PXRC8_JPEG%2FKakaoTalk_20251118_151619467_10.jpg", "desc": "카페", "menu": "잣 라떼, 차", "label": "별그랑베이커리", "lat": 37.8078681, "lng": 127.5259797}, {"name": "사트레봉 청평호수점", "type": "카페", "link": "https://naver.me/GPdoXM36", "address": "경기 가평군 설악면 자잠로 331 사트레봉 청평호수점", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20251014_192%2F1760430795619VlNHn_JPEG%2F31481.jpg", "desc": "카페", "menu": "브런치, 디저트류", "label": "사트레봉", "lat": 37.7021005, "lng": 127.4871443}, {"name": "델씨엘로 본점", "type": "식당", "link": "https://naver.me/5k7fNFXU", "address": "경기 가평군 청평면 경춘로 1031 델씨엘로", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20221212_78%2F167084603353632JG8_JPEG%2FD2FC62F8-FE7C-4CBA-84C8-5D6BD6A66886.jpeg", "desc": "양식", "menu": "화덕피자", "label": "델씨엘로", "lat": 37.7530504, "lng": 127.4337709}, {"name": "청평돌짜장", "type": "식당", "link": "https://naver.me/GkR3zCfF", "address": "경기 가평군 청평면 북한강로 2040 청평돌짜장", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fpup-review-phinf.pstatic.net%2FMjAyNjAyMTNfMjI3%2FMDAxNzcwOTc2MzYwODcw.h4JRS6PEzsj7IsG2gUybk5pTClJVZRfLFbY3rmyQlJkg.f62BhYqLh8p05EqNCXd6yNcIV8Z40toruijnxBMD-UMg.JPEG%2F7D495683-F55F-4EDF-8844-2C4C4358BD36.jpeg%3Ftype%3Dw1500_60_sharpen", "desc": "중식", "menu": "돌짜장, 갈비찜", "label": "청평돌짜장", "lat": 37.6983668, "lng": 127.3937897}, {"name": "리버레인", "type": "카페", "link": "https://naver.me/GWe2rSfz", "address": "경기 가평군 청평면 북한강로 2141-3 리버레인카페", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20240724_160%2F17217900479429w7j2_JPEG%2FIMG_8828.jpeg", "desc": "카페", "menu": "스무디, 에이드, 라떼", "label": "리버레인", "lat": 37.7062845, "lng": 127.3970293}, {"name": "몽브레뉴 가평본점", "type": "카페", "link": "https://naver.me/IItnNnCn", "address": "경기 가평군 설악면 신천중앙로 76-136", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20250923_298%2F175861420802731kgd_JPEG%2FKakaoTalk_20250923_164343315_01.jpg", "desc": "카페", "menu": "슈페너, 티, 스무디", "label": "몽브레뉴", "lat": 37.6719418, "lng": 127.4945079}, {"name": "플로레", "type": "식당", "link": "https://naver.me/5chuVXKQ", "address": "경기 가평군 청평면 에덴벚꽃길 39-1 플로레", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20221128_100%2F1669603417789zrkS2_JPEG%2FKakaoTalk_20221128_113331479_01.jpg", "desc": "양식", "menu": "파스타, 피자, 음료", "label": "플로레", "lat": 37.7818803, "lng": 127.4670287}, {"name": "옹골지기 본점", "type": "식당", "link": "https://naver.me/GpCz1snw", "address": "경기 가평군 설악면 신천중앙로 151 1층 옹골지기", "image": "https://search.pstatic.net/common/?src=http%3A%2F%2Fblogfiles.naver.net%2FMjAyNjAyMDhfNDYg%2FMDAxNzcwNTUzNzc3NDQ0.y3_DbCzMqPTwtNmhgFxCIlFTDKdxvU8_QCbTfBSPQcMg.-qUTzWN-wlZYJtqSuktNGy-k9tnFSi8csXl5yVZcb6Mg.JPEG%2F19.jpg", "desc": "한식", "menu": "메밀국수, 들깨칼국수, 감자전", "label": "옹골지기", "lat": 37.6773688, "lng": 127.487221}, {"name": "마크빈제빵소", "type": "카페", "link": "https://naver.me/F1rxncSp", "address": "경기 가평군 가평읍 석봉로 116 1층,2층,3층", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20260206_300%2F1770336255357QdLdI_JPEG%2F20260206_081024.jpg", "desc": "카페", "menu": "소금빵, 페스츄리, 케이크", "label": "마크빈제빵소", "lat": 37.8255858, "lng": 127.5125092}, {"name": "남이섬 안반지 닭갈비", "type": "식당", "link": "https://naver.me/55rmXEfm", "address": "경기 가평군 가평읍 북한강변로 1061 남이섬 안반지 닭갈비", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20231221_83%2F1703127895428EIFGX_JPEG%2F1000035960.jpg", "desc": "한식", "menu": "닭갈비, 막국수, 감자전", "label": "안반지 닭갈비", "lat": 37.806991, "lng": 127.524679}, {"name": "유일닭강정 가평맛집", "type": "식당", "link": "https://naver.me/IgJGVcTP", "address": "경기 가평군 가평읍 가화로 122 1층", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20240727_47%2F1722006938435MyL09_JPEG%2FKakaoTalk_20240710_142224155_15.jpg", "desc": "한식", "menu": "잣닭강정", "label": "유일닭강정", "lat": 37.8305541, "lng": 127.513634}, {"name": "유명숯불닭갈비 가평본점", "type": "식당", "link": "https://naver.me/52R5QewS", "address": "경기 가평군 설악면 신천중앙로 15", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20250829_213%2F1756439419925XEs5T_JPEG%2F20230525_152033.jpg", "desc": "한식", "menu": "숯불닭갈비, 감자전, 막국수", "label": "유명숯불닭갈비", "lat": 37.6718261, "lng": 127.4898146}, {"name": "쁘띠빠리", "type": "식당", "link": "https://naver.me/xOxHBMoC", "address": "경기 가평군 설악면 유명로 2176", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20240721_213%2F1721546338368ukohf_JPEG%2FScreenshot_20230813_182023_Chrome.jpg", "desc": "양식", "menu": "프랑스 음식", "label": "쁘띠빠리", "lat": 37.7008136, "lng": 127.4574611}, {"name": "고요재", "type": "카페", "link": "https://naver.me/F0z2tB2X", "address": "경기 가평군 상면 수목원로 174 고요재", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20251221_101%2F1766302708926PGDl2_JPEG%2FIMG_0460.jpeg", "desc": "카페", "menu": "라떼, 밀크티, 커피", "label": "고요재", "lat": 37.7627757, "lng": 127.3630569}, {"name": "도선재", "type": "식당", "link": "https://naver.me/FV7YgvT3", "address": "경기 가평군 청평면 양진길 7 1층", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20201102_103%2F1604322911358bV4rE_JPEG%2Fy2DvZFKj3ibsmPKtSOR6xpRg.jpeg.jpg", "desc": "한식", "menu": "국밥, 떡갈비, 수육", "label": "도선재", "lat": 37.7145415, "lng": 127.4852748}, {"name": "유명산흥부네솥뚜껑닭볶음탕", "type": "식당", "link": "https://naver.me/x7ndLCoU", "address": "경기 가평군 설악면 어비산길99번길 67-13", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20211006_288%2F1633499927230EEr49_JPEG%2FKakaoTalk_20211006_144548396.jpg", "desc": "한식", "menu": "닭볶음탕, 백숙", "label": "솥뚜껑닭볶음탕", "lat": 37.5974206, "lng": 127.5098007}, {"name": "할매춘천닭갈비 가평본점", "type": "식당", "link": "https://naver.me/xCBQacU0", "address": "경기 가평군 가평읍 북한강변로 1108", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20260109_209%2F1767928937590tiuJH_PNG%2F%25B4%25D9%25BF%25EE%25B7%25CE%25B5%25E5.png", "desc": "한식", "menu": "닭갈비, 막국수, 두부전골", "label": "할매춘천닭갈비", "lat": 37.8108299, "lng": 127.5224462}, {"name": "크래머리", "type": "식당", "link": "https://naver.me/GgWklwKB", "address": "경기 가평군 상면 청군로 429", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20240731_243%2F1722413517314fE8an_JPEG%2F%25BF%25CF%25C0%25FC%25C3%25D6%25C1%25BE.jpg", "desc": "양식", "menu": "파스타, 피자, 버거", "label": "크래머리", "lat": 37.760451, "lng": 127.3940947}, {"name": "명가닭갈비 가평본점", "type": "식당", "link": "https://naver.me/xeASeXTv", "address": "경기 가평군 가평읍 북한강변로 1044-11 2층 명가닭갈비", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20250920_65%2F17583777387557oBXu_JPEG%2F20250827_140338.jpg", "desc": "한식", "menu": "닭갈비, 막국수, 감자전, 전병", "label": "명가닭갈비", "lat": 37.8057973, "lng": 127.5256812}, {"name": "백련사", "type": "놀거리", "link": "https://naver.me/xeAPI8kf", "address": "경기 가평군 상면 샘골길 159-50 백련사", "image": "https://search.pstatic.net/common/?src=http%3A%2F%2Fblogfiles.naver.net%2FMjAyNTEyMzBfMTgz%2FMDAxNzY3MDU5MTI2NTQw.sMvmHd2ZHtRnGUknN5_FHbkbBmvi-2PnLMxsyQ2toFYg.MlWvB70VBc-lC33eKbAtQDsP9O9ruJdxY5NCNkrRX1sg.JPEG%2F%25B9%25E9%25B7%25C3%25BB%25E7%25BF%25A9%25C7%25E0%25B1%25E2_%252830%2529.jpg", "desc": "산속 고요한 사찰에서 조용히 산책·힐링하기 좋은 곳", "menu": "", "label": "백련사", "lat": 37.7834307, "lng": 127.3493764}, {"name": "호명호수공원", "type": "놀거리", "link": "https://naver.me/x0Ud9iEE", "address": "경기 가평군 청평면 호명리 1-3", "image": "https://search.pstatic.net/common/?src=http%3A%2F%2Fimage.nmv.naver.net%2Fblog_2025_09_13_1634%2FoyfS3VX1MO_10.jpg", "desc": "산 위 호수 둘레길과 전망을 즐기는 상쾌한 산책 코스", "menu": "", "label": "호명호수공원", "lat": 37.7491863, "lng": 127.4756628}, {"name": "잣향기푸른숲", "type": "놀거리", "link": "https://naver.me/GHvqpQ3u", "address": "경기 가평군 상면 축령로 289-146", "image": "https://search.pstatic.net/common/?src=http%3A%2F%2Fblogfiles.naver.net%2FMjAyNjAyMDdfNjcg%2FMDAxNzcwNDcwNjY1NDgy.-4cX12YynRgxncdaCDMS_wjCB3xg17YvgA90iXgOe28g.mvSFFSEgN5HVCdHfAYb8a1J6zlFM7lZFdjOyZOTrAmQg.JPEG%2FIMG_1337.jpg", "desc": "잣나무 숲에서 산림욕과 가벼운 트레킹을 즐기는 힐링 숲", "menu": "", "label": "잣향기푸른숲", "lat": 37.7707014, "lng": 127.3365253}, {"name": "가평레일파크", "type": "놀거리", "link": "https://naver.me/G0DXlFRE", "address": "경기 가평군 가평읍 장터길 14", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fpup-review-phinf.pstatic.net%2FMjAyNTA5MTZfMTA0%2FMDAxNzU3OTk5OTU5MjIy.iJTyy6RlvmHADBnyOQN1LJuDt28J5wrxDeFny9BD6Kog.MMnpGDm0UCoTiywkP_NUXHYkAM4IXkOr1kIFTii2zwYg.JPEG%2F1000576268.jpg.jpg%3Ftype%3Dw1500_60_sharpen", "desc": "강 따라 레일바이크를 타는 체험형 액티비티", "menu": "", "label": "레일파크", "lat": 37.8289589, "lng": 127.5158266}, {"name": "자연과별 가평천문대", "type": "놀거리", "link": "https://naver.me/FxFtbinz", "address": "경기 가평군 북면 백둔로342번길 115-33", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20210512_217%2F1620786276737o9zcJ_JPEG%2FwzWN3gHjSAFsot_FfrUrXPG9.jpg", "desc": "망원경으로 별을 관측하는 밤 체험 공간", "menu": "", "label": "천문대", "lat": 37.9128577, "lng": 127.4741303}, {"name": "강씨봉자연휴양림", "type": "놀거리", "link": "https://naver.me/xZVN59cG", "address": "경기 가평군 북면 논남기길 520", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20200107_36%2F1578387955667Sb6fn_JPEG%2FcESCj-IodMHx7qwOzcigz9eX.JPG.jpg", "desc": "숲길 산책과 가벼운 등산이 가능한 자연 휴양지", "menu": "", "label": "자연휴양림", "lat": 37.9698801, "lng": 127.4082954}, {"name": "가평양떼목장", "type": "놀거리", "link": "https://naver.me/xY4sPnQv", "address": "경기 가평군 설악면 유명로 1209", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20250802_132%2F1754111866082EvoAL_JPEG%2FKakaoTalk_20250802_141543025.jpg", "desc": "양 먹이주기와 초원 풍경을 즐기는 체험 목장", "menu": "", "label": "양떼목장", "lat": 37.6438266, "lng": 127.4737117}, {"name": "쁘띠프랑스", "type": "놀거리", "link": "https://naver.me/xiqunbvs", "address": "경기 가평군 청평면 호반로 1063", "image": "https://search.pstatic.net/common/?src=http%3A%2F%2Fblogfiles.naver.net%2FMjAyNTA2MTdfMTk5%2FMDAxNzUwMTYyMTY1NjYy.xpsmM8dFkG2RqMhT6lBo_E84ln4a0Nw2yk8RsO7v170g.uiGiCandagvt11A1bcdmoyn_7R7megNM0k0nupo3amog.JPEG%2FIMG_1107_2.jpeg", "desc": "프랑스풍 건물과 공연·전시를 즐기는 유럽 감성 테마마을", "menu": "", "label": "쁘띠프랑스", "lat": 37.7150146, "lng": 127.490699}, {"name": "어비계곡", "type": "놀거리", "link": "https://naver.me/G9rJzKH7", "address": "경기 가평군 설악면 가일리", "image": "https://search.pstatic.net/common/?src=http%3A%2F%2Fimage.nmv.naver.net%2Fblog_2026_02_04_1214%2FEMSS2fvLjg_03.jpg", "desc": "맑은 계곡물에서 물놀이와 자연 풍경을 즐기기 좋은 곳", "menu": "", "label": "어비계곡", "lat": 37.5893487, "lng": 127.4947324}, {"name": "아침고요수목원 오색별빛정원", "type": "놀거리", "link": "https://naver.me/GhbuYrhW", "address": "경기 가평군 상면 수목원로 432", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20251127_21%2F176421878502784UQT_JPEG%2F%25C7%25CF%25B0%25E6%25C1%25A4%25BF%25F8.jpg", "desc": "야간 조명 축제로 로맨틱한 정원 산책을 즐기는 명소", "menu": "", "label": "아침고요수목원", "lat": 37.7439415, "lng": 127.3525157}, {"name": "이탈리아마을", "type": "놀거리", "link": "https://naver.me/xZVbszFF", "address": "경기 가평군 청평면 고성리 619-1", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fpup-review-phinf.pstatic.net%2FMjAyNTEyMDdfMjI3%2FMDAxNzY1MTEzOTYwNzQw.XJrBvveuUZLFeDyOL6KSoyhdUkwBOLHIuIfTtEEpO6kg.s60aTF9mEEhBaYpKdeUMhh-bKWSGMnLvVATHA-vlDVUg.JPEG%2F20251206_110123.jpg.jpg%3Ftype%3Dw1500_60_sharpen", "desc": "이탈리아풍 건물과 포토존이 가득한 감성 테마 공간", "menu": "", "label": "이탈리아마을", "lat": 37.7177815, "lng": 127.4904791}, {"name": "신비동물원 가평점", "type": "놀거리", "link": "https://naver.me/57VZaY7W", "address": "경기 가평군 설악면 미사리로 189 1층", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20240214_275%2F17078913778081hMdp_JPEG%2F3.JPEG", "desc": "다양한 동물을 가까이서 관찰·체험하는 실내 동물원", "menu": "", "label": "신비동물원", "lat": 37.6880801, "lng": 127.5130492}, {"name": "에델바이스 스위스 테마파크", "type": "놀거리", "link": "https://naver.me/5PVaG98H", "address": "경기 가평군 설악면 다락재로 226-42 에델바이스 스위스 테마파크", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20251217_279%2F1765927236413IxJUV_JPEG%2F%25C0%25A9%25C5%25CD%25B8%25B6%25C4%25CF3.jpg", "desc": "스위스풍 마을에서 체험·포토존을 즐기는 이국적 공간", "menu": "", "label": "스위스 테마파크", "lat": 37.667355, "lng": 127.4495604}, {"name": "베고니아새정원", "type": "놀거리", "link": "https://naver.me/x9BNTNkU", "address": "경기 가평군 설악면 미사리로270번길 28 가평베고니아새정원", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20250716_43%2F1752647876673DXoNv_JPEG%2FKakaoTalk_20250428_215302792_03.jpg", "desc": "화려한 베고니아와 새 전시를 함께 감상하는 실내 정원", "menu": "", "label": "베고니아새정원", "lat": 37.6846414, "lng": 127.5247024}, {"name": "제이드가든", "type": "놀거리", "link": "https://naver.me/54LbciAr", "address": "강원 춘천시 남산면 햇골길 80", "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20240523_32%2F1716444979718zKWTH_JPEG%2F%25C1%25A6%25C0%25CC%25B5%25E5%25B0%25A1%25B5%25E7%25BC%25F6%25B8%25F1%25BF%25F8%2528hansfoto%2529_%25287%2529%25281%2529_%2528%25B8%25DE%25C0%25CE_1%2529.jpg", "desc": "유럽식 정원과 숲길을 따라 걷는 감성 산책 명소", "menu": "", "label": "제이드가든", "lat": 37.8327515, "lng": 127.542059}];
+
+const TYPE_KEY = {
+  "숙소":"stay",
+  "식당":"food",
+  "카페":"cafe",
+  "놀거리":"play"
+};
+
+const icons = {
+  stay: makeDivIcon("stay"),
+  food: makeDivIcon("food"),
+  cafe: makeDivIcon("cafe"),
+  play: makeDivIcon("play"),
+};
+
+function makeDivIcon(kind){
+  const cls = kind==="stay"?"icon-stay":kind==="food"?"icon-food":kind==="cafe"?"icon-cafe":"icon-play";
+  const svg = kind==="stay"
+    ? '<svg viewBox="0 0 24 24"><path d="M12 3l9 7v11a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10l9-7z"/></svg>'
+    : kind==="food"
+    ? '<svg viewBox="0 0 24 24"><path d="M7 2h2v10a3 3 0 0 1-6 0V2h2v10a1 1 0 0 0 2 0V2zm9 0c1.7 0 3 1.3 3 3v7h-2v10h-2V2h1z"/></svg>'
+    : kind==="cafe"
+    ? '<svg viewBox="0 0 24 24"><path d="M3 8h12v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8zm14 1h2a2 2 0 0 1 0 4h-2V9zm-1 12H4v2h12v-2z"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.1H22l-6 4.3 2.3 7.1-6.3-4.4-6.3 4.4 2.3-7.1-6-4.3h7.6L12 2z"/></svg>';
+  return L.divIcon({
+    className:"",
+    html:`<div class="marker-icon ${cls}">${svg}</div>`,
+    iconSize:[34,34],
+    iconAnchor:[17,34],
+    popupAnchor:[0,-34]
+  });
+}
+
+function haversineKm(a,b){
+  const R=6371;
+  const toRad = d=>d*Math.PI/180;
+  const dLat=toRad(b.lat-a.lat);
+  const dLng=toRad(b.lng-a.lng);
+  const s1=Math.sin(dLat/2), s2=Math.sin(dLng/2);
+  const c = s1*s1 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*s2*s2;
+  return 2*R*Math.asin(Math.min(1, Math.sqrt(c)));
+}
+function estimate(a,b){
+  const straight = haversineKm(a,b);
+  const road = straight * 1.3;
+  const hours = road / 45.0;
+  const mins = Math.max(1, Math.round(hours*60));
+  return {straight, road, mins};
+}
+
+const map = L.map('map', {
+  zoomControl: true,
+  minZoom: 9,
+});
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+const markers = new Map();
+const allLatLngs = [];
+
+for (const p of PLACES){
+  const key = TYPE_KEY[p.type] || "play";
+  const m = L.marker([p.lat, p.lng], {icon: icons[key], keyboard:false}).addTo(map);
+  m.on('click', ()=> openPlace(p));
+  m.bindTooltip(p.label || p.name, {
+    permanent:true, direction:'right', offset:[12, -10], className:'marker-label'
+  });
+  markers.set(p.name, m);
+  allLatLngs.push([p.lat, p.lng]);
+}
+
+const bounds = L.latLngBounds(allLatLngs).pad(0.15);
+map.fitBounds(bounds);
+map.setMaxBounds(bounds.pad(0.35));
+document.getElementById('countBadge').textContent = `${PLACES.length}곳`;
+
+function $(id){return document.getElementById(id)}
+document.querySelectorAll('[data-toggle]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const target = btn.getAttribute('data-toggle');
+    const el = $(target);
+    el.classList.toggle('on');
+    btn.textContent = el.classList.contains('on') ? '접기' : '펼치기';
+  });
+});
+
+let isFull=false;
+$('btnFull').addEventListener('click', toggleFullscreen);
+function toggleFullscreen(){
+  isFull=!isFull;
+  $('fsMask').classList.toggle('on', isFull);
+  const mapEl = $('map');
+  mapEl.classList.toggle('fullscreen', isFull);
+  $('btnFull').textContent = isFull ? '닫기' : '전체화면';
+  setTimeout(()=> map.invalidateSize(true), 200);
+}
+$('btnFit').addEventListener('click', ()=> map.fitBounds(bounds));
+$('btnMyLoc').addEventListener('click', ()=> {
+  if(!navigator.geolocation) return alert('이 기기에서 위치 기능을 지원하지 않아요.');
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const lat=pos.coords.latitude, lng=pos.coords.longitude;
+    map.flyTo([lat,lng], 14);
+    L.circleMarker([lat,lng], {radius:8, weight:2, fillOpacity:.35}).addTo(map);
+  }, err=> alert('위치 권한이 없거나, 위치를 가져오지 못했어요.'));
+});
+
+const FAV_KEY = 'gapyeong_favorites_v1';
+function getFavSet(){
+  try{ return new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); }
+  catch(e){ return new Set(); }
+}
+function setFavSet(set){
+  localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(set)));
+}
+let fav = getFavSet();
+
+const f_all=$('f_all'), f_stay=$('f_stay'), f_food=$('f_food'), f_cafe=$('f_cafe'), f_play=$('f_play'), f_fav=$('f_fav');
+[f_all,f_stay,f_food,f_cafe,f_play,f_fav].forEach(el=> el.addEventListener('change', applyFilters));
+function applyFilters(){
+  const selected = new Set();
+  if (!f_all.checked){
+    if (f_stay.checked) selected.add('숙소');
+    if (f_food.checked) selected.add('식당');
+    if (f_cafe.checked) selected.add('카페');
+    if (f_play.checked) selected.add('놀거리');
+  }
+  const favOnly = f_fav.checked;
+  const q = ($('searchInput').value || '').trim().toLowerCase();
+
+  for (const p of PLACES){
+    const m = markers.get(p.name);
+    const isStay = p.type === '숙소';
+    const inType = f_all.checked ? true : selected.has(p.type);
+    const inFav = !favOnly ? true : fav.has(p.name);
+    const inSearch = !q ? true : (
+      (p.name||'').toLowerCase().includes(q) ||
+      (p.address||'').toLowerCase().includes(q) ||
+      (p.menu||'').toLowerCase().includes(q) ||
+      (p.desc||'').toLowerCase().includes(q) ||
+      (p.label||'').toLowerCase().includes(q)
+    );
+
+    const show = (isStay || inType) && inFav && inSearch;
+    if (show) m.addTo(map); else m.remove();
+  }
+  renderLists();
+}
+
+function syncAllLogic(){
+  if (f_all.checked){
+    f_stay.checked=false; f_food.checked=false; f_cafe.checked=false; f_play.checked=false;
+  }
+}
+[f_stay,f_food,f_cafe,f_play].forEach(el=> el.addEventListener('change', ()=>{
+  if (el.checked) f_all.checked=false;
+  if (!f_stay.checked && !f_food.checked && !f_cafe.checked && !f_play.checked) f_all.checked=true;
+  applyFilters();
+}));
+f_all.addEventListener('change', ()=>{ if (f_all.checked) syncAllLogic(); applyFilters(); });
+$('searchInput').addEventListener('input', ()=> applyFilters());
+
+let currentPlace=null;
+const modal=$('modal'), mask=$('modalMask');
+function closeModal(){ modal.classList.remove('on'); mask.classList.remove('on'); }
+$('mClose').addEventListener('click', closeModal);
+mask.addEventListener('click', closeModal);
+
+function openPlace(p){
+  currentPlace=p;
+  $('mTitle').textContent = p.name;
+  $('mType').textContent = p.type;
+  $('mAddr').textContent = p.address || '';
+  $('mImgWrap').innerHTML = p.image ? `<img src="${p.image}" alt="">` : '';
+  const isStay = p.type === '숙소';
+  const isPlay = p.type === '놀거리';
+  $('mDesc').textContent = (isStay ? '-' : (p.desc || '-'));
+  $('mMenuWrap').style.display = (isStay || isPlay) ? 'none' : 'block';
+  $('mMenu').textContent = (isStay || isPlay) ? '' : (p.menu || '-');
+
+  $('mLinkBtn').textContent = isStay ? '홈페이지 바로가기' : '네이버지도 바로가기';
+  $('mLinkBtn').onclick = ()=> window.open(p.link, '_blank');
+
+  $('mFavBtn').textContent = fav.has(p.name) ? '★ 즐겨찾기 해제' : '⭐ 즐겨찾기';
+  $('mFavBtn').onclick = ()=> {
+    if (fav.has(p.name)) fav.delete(p.name); else fav.add(p.name);
+    setFavSet(fav);
+    $('mFavBtn').textContent = fav.has(p.name) ? '★ 즐겨찾기 해제' : '⭐ 즐겨찾기';
+    renderFav();
+    applyFilters();
+  };
+
+  $('mSetFrom').onclick = ()=> { $('fromSel').value = p.name; calcEstimate(); closeModal(); };
+  $('mSetTo').onclick = ()=> { $('toSel').value = p.name; calcEstimate(); closeModal(); };
+
+  modal.classList.add('on'); mask.classList.add('on');
+
+  const m = markers.get(p.name);
+  if (m) map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 13), {duration:.5});
+}
+
+function visiblePlaces(){
+  const res=[];
+  const q = ($('searchInput').value || '').trim().toLowerCase();
+  const selected = new Set();
+  if (!f_all.checked){
+    if (f_stay.checked) selected.add('숙소');
+    if (f_food.checked) selected.add('식당');
+    if (f_cafe.checked) selected.add('카페');
+    if (f_play.checked) selected.add('놀거리');
+  }
+  const favOnly = f_fav.checked;
+  for (const p of PLACES){
+    const isStay = p.type === '숙소';
+    const inType = f_all.checked ? true : selected.has(p.type);
+    const inFav = !favOnly ? true : fav.has(p.name);
+    const inSearch = !q ? true : (
+      (p.name||'').toLowerCase().includes(q) ||
+      (p.address||'').toLowerCase().includes(q) ||
+      (p.menu||'').toLowerCase().includes(q) ||
+      (p.desc||'').toLowerCase().includes(q) ||
+      (p.label||'').toLowerCase().includes(q)
+    );
+    const show = (isStay || inType) && inFav && inSearch;
+    if (show) res.push(p);
+  }
+  return res;
+}
+
+function renderLists(){
+  const list=$('placeList');
+  list.innerHTML='';
+  const v = visiblePlaces();
+  for (const p of v){
+    const dotCls = TYPE_KEY[p.type] || 'play';
+    const el = document.createElement('div');
+    el.className='item';
+    el.innerHTML = `<div class="dot ${dotCls}"></div>
+      <div style="flex:1 1 auto;">
+        <div class="t">${p.name}${fav.has(p.name)?' <span class="badge" style="border-color:rgba(245,158,11,.35); color:#92400e">★</span>':''}</div>
+        <div class="s">${p.address||''}</div>
+      </div>`;
+    el.onclick = ()=> openPlace(p);
+    list.appendChild(el);
+  }
+  renderFav();
+}
+
+function renderFav(){
+  const list=$('favList');
+  list.innerHTML='';
+  const favArr = PLACES.filter(p=> fav.has(p.name));
+  $('favEmpty').style.display = favArr.length? 'none':'block';
+  for (const p of favArr){
+    const el = document.createElement('div');
+    el.className='item';
+    el.innerHTML = `<div class="dot fav"></div>
+      <div style="flex:1 1 auto;">
+        <div class="t">${p.name}</div>
+        <div class="s">${p.address||''}</div>
+      </div>`;
+    el.onclick = ()=> openPlace(p);
+    list.appendChild(el);
+  }
+}
+
+function fillSelects(){
+  const opts = PLACES.map(p=> `<option value="${p.name}">${p.name} (${p.type})</option>`).join('');
+  $('fromSel').innerHTML = `<option value="">선택</option>` + opts;
+  $('toSel').innerHTML = `<option value="">선택</option>` + opts;
+  const stay = PLACES.find(p=> p.type==='숙소');
+  if (stay) $('fromSel').value = stay.name;
+}
+fillSelects();
+
+$('btnCalc').addEventListener('click', calcEstimate);
+$('btnSwap').addEventListener('click', ()=> {
+  const a=$('fromSel').value, b=$('toSel').value;
+  $('fromSel').value=b; $('toSel').value=a;
+  calcEstimate();
+});
+$('btnResetRoute').addEventListener('click', ()=> {
+  const stay = PLACES.find(p=> p.type==='숙소');
+  $('fromSel').value = stay ? stay.name : '';
+  $('toSel').value = '';
+  $('routeResult').textContent = '옵션 B 기준(거리×1.3, 평균 45km/h)으로 대략 계산해요.';
+});
+$('fromSel').addEventListener('change', calcEstimate);
+$('toSel').addEventListener('change', calcEstimate);
+
+function byName(name){ return PLACES.find(p=>p.name===name); }
+let routeLine=null;
+function calcEstimate(){
+  const a=byName($('fromSel').value);
+  const b=byName($('toSel').value);
+  if (!a || !b) {
+    $('routeResult').textContent = '출발지/도착지를 선택하면 대략 이동시간을 보여줘요.';
+    if (routeLine) { map.removeLayer(routeLine); routeLine=null; }
+    return;
+  }
+  const est = estimate(a,b);
+  $('routeResult').textContent = `직선거리 약 ${est.straight.toFixed(1)}km → 도로거리 추정 ${est.road.toFixed(1)}km, 예상 ${est.mins}분 (옵션 B)`;
+  if (routeLine) map.removeLayer(routeLine);
+  routeLine = L.polyline([[a.lat,a.lng],[b.lat,b.lng]], {weight:4, opacity:.7}).addTo(map);
+  map.fitBounds(L.latLngBounds([[a.lat,a.lng],[b.lat,b.lng]]).pad(0.25));
+}
+
+$('btnNaverRoute').addEventListener('click', ()=> {
+  const a=byName($('fromSel').value);
+  const b=byName($('toSel').value);
+  if (!a || !b) return alert('출발지/도착지를 먼저 선택해줘!');
+  const sName = encodeURIComponent(a.name);
+  const eName = encodeURIComponent(b.name);
+  const url = `https://map.naver.com/v5/directions/${a.lng},${a.lat},${sName},,/${b.lng},${b.lat},${eName},,/car`;
+  window.open(url, '_blank');
+});
+
+renderLists();
+applyFilters();
+syncAllLogic();
+</script>
+</body>
+</html>
